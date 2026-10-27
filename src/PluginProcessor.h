@@ -15,7 +15,9 @@ public:
     void releaseResources() override {}
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    void processBlockBypassed (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     using AudioProcessor::processBlock;
+    juce::AudioProcessorParameter* getBypassParameter() const override;
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
@@ -38,11 +40,18 @@ public:
     juce::AudioProcessorValueTreeState apvts;
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
 
+    // Editor size (not automatable), saved with the session
+    std::atomic<float> uiScale { 0.75f };
+
 private:
     std::unique_ptr<juce::dsp::Oversampling<float>> oversampler;
     std::array<pf::PdfCircuit, 2> circuits;
     juce::SmoothedValue<double> gainS, freqS, heightS;
     juce::SmoothedValue<float> trimS;
+    juce::AudioBuffer<float> dryBuffer;
+    juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Linear> dryDelay { 4096 };
+    juce::SmoothedValue<float> bypassMix;
+    void pushDry (const juce::AudioBuffer<float>& src, int numCh, int numSamples);
     bool lastDirty = false;
     float switchRamp = 1.0f;
 
@@ -52,6 +61,7 @@ private:
     std::atomic<float>* pHeight = nullptr;
     std::atomic<float>* pBandwidth = nullptr;
     std::atomic<float>* pTrim = nullptr;
+    std::atomic<float>* pBypass = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ParametricFuzzProcessor)
 };

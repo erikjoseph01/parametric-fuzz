@@ -30,8 +30,21 @@ juce_add_plugin(ParametricFuzz
     VST3_CATEGORIES Fx Distortion EQ
     COPY_PLUGIN_AFTER_BUILD FALSE)
 
+juce_add_binary_data(PfAssets SOURCES
+    assets/panel.jpg
+    assets/knob.png
+    assets/trim.png
+    assets/bandwidth.png
+    assets/footswitch_pressed.png
+    assets/footswitch_released.png
+    assets/led_green_on.png
+    assets/led_green_off.png
+    assets/led_blue_on.png
+    assets/led_blue_off.png)
+
 target_sources(ParametricFuzz PRIVATE
-    src/PluginProcessor.cpp)
+    src/PluginProcessor.cpp
+    src/PluginEditor.cpp)
 
 target_include_directories(ParametricFuzz PRIVATE src)
 
@@ -43,9 +56,21 @@ target_compile_definitions(ParametricFuzz PUBLIC
 
 target_link_libraries(ParametricFuzz
     PRIVATE
+        PfAssets
         juce::juce_audio_utils
         juce::juce_dsp
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
+
+# Headless tool that renders the editor to PNG (used by CI to check the skin)
+juce_add_console_app(SkinSnapshot PRODUCT_NAME "SkinSnapshot")
+target_sources(SkinSnapshot PRIVATE tools/snapshot.cpp src/PluginProcessor.cpp src/PluginEditor.cpp)
+target_include_directories(SkinSnapshot PRIVATE src)
+target_compile_definitions(SkinSnapshot PRIVATE
+    JucePlugin_Name="Parametric Fuzz"
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0)
+target_link_libraries(SkinSnapshot PRIVATE PfAssets juce::juce_audio_utils juce::juce_dsp
+    juce::juce_recommended_config_flags)

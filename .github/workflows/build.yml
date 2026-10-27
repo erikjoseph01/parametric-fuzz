@@ -20,6 +20,12 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel 4
 
+      - name: Render skin snapshots
+        run: |
+          SNAP=$(find build -name SkinSnapshot -type f -perm -u+x | head -1)
+          "$SNAP" dist-snapshots
+          ls -la dist-snapshots
+
       - name: Sign (ad-hoc) and package
         run: |
           ART="build/ParametricFuzz_artefacts/Release"
@@ -43,13 +49,15 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ParametricFuzz-macOS
-          path: dist/*.zip
+          path: |
+            dist/*.zip
+            dist-snapshots/*.png
 
       - name: Publish "latest" release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest dist/*.zip --target "$GITHUB_SHA" --prerelease \
+          gh release create latest dist/*.zip dist-snapshots/*.png --target "$GITHUB_SHA" --prerelease \
             --title "Latest build (${GITHUB_SHA::7})" \
             --notes "Automatic build of ${GITHUB_SHA::7}. Universal (Apple Silicon + Intel), macOS 11+."
