@@ -1,0 +1,55 @@
+name: Build macOS plugin
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+
+      - name: Sign (ad-hoc) and package
+        run: |
+          ART="build/ParametricFuzz_artefacts/Release"
+          ls -R "$ART" | head -40
+          codesign --force --deep --sign - "$ART/AU/Parametric Fuzz.component"
+          codesign --force --deep --sign - "$ART/VST3/Parametric Fuzz.vst3"
+          codesign --force --deep --sign - "$ART/Standalone/Parametric Fuzz.app"
+          mkdir -p dist
+          ditto -c -k --keepParent "$ART/AU/Parametric Fuzz.component" dist/ParametricFuzz-AU.zip
+          ditto -c -k --keepParent "$ART/VST3/Parametric Fuzz.vst3" dist/ParametricFuzz-VST3.zip
+          ditto -c -k --keepParent "$ART/Standalone/Parametric Fuzz.app" dist/ParametricFuzz-Standalone.zip
+
+      - name: Validate Audio Unit (auval)
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R "build/ParametricFuzz_artefacts/Release/AU/Parametric Fuzz.component" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar || true
+          auval -a | grep -i "Ejau" || true
+          auval -strict -v aufx Pfz1 Ejau
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ParametricFuzz-macOS
+          path: dist/*.zip
+
+      - name: Publish "latest" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest dist/*.zip --target "$GITHUB_SHA" --prerelease \
+            --title "Latest build (${GITHUB_SHA::7})" \
+            --notes "Automatic build of ${GITHUB_SHA::7}. Universal (Apple Silicon + Intel), macOS 11+."
